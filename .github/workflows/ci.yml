@@ -1,0 +1,27 @@
+name: detections-ci
+
+# Enforce the detections on every change: the regression test must stay green
+# (zero false positives on routine ML-ops, all exfil caught) and the Sigma rules must lint.
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # validate.py uses only the standard library; sigma-cli is needed to lint the rules.
+      - name: Install Sigma tooling
+        run: pip install sigma-cli pysigma-backend-splunk
+
+      - name: Regression test (0 false positives, all exfil caught)
+        run: python detections/validate.py
+
+      - name: Lint Sigma rules
+        run: sigma check detections/sigma/
