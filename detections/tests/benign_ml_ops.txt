@@ -1,0 +1,12 @@
+# Benign ML-pipeline commands that run constantly in an AI lab's eval/training sandboxes.
+# A detection that is "not noise" must produce ZERO findings on all of these. One per line.
+pip install -q -U transformers accelerate datasets
+curl -sSfL -o model.safetensors https://huggingface.co/meta-llama/Llama-3.1-8B/resolve/main/model.safetensors
+huggingface-cli download Qwen/Qwen2.5-7B --local-dir /data/qwen
+curl -sSfL https://files.pythonhosted.org/packages/ab/cd/pyarrow.whl -o /tmp/pyarrow.whl
+python -m pip install --index-url https://pypi.org/simple/ pysigma
+gsutil -m cp /data/ckpt-1000.pt gs://yourorg-training-ckpts/run42/ckpt-1000.pt
+oci os object put --namespace yourorg-prod -bn checkpoints --file /data/ckpt-1000.pt --name run42/ckpt-1000.pt
+curl -sSfL -X PUT --upload-file /data/ckpt.pt "https://yourorg-ckpts.objectstorage.us-ashburn-1.oci.customer-oci.com/n/yourorg-prod/b/checkpoints/o/run42/ckpt.pt"
+curl -sSfL "https://storage.googleapis.com/yourorg-datasets/eval/mmlu.jsonl" -o /tmp/mmlu.jsonl
+wget -q https://download.pytorch.org/whl/cu121/torch-2.4.0.whl -O /tmp/torch.whl

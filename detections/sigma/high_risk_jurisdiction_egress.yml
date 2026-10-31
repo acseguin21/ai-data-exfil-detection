@@ -1,0 +1,52 @@
+title: Transfer Tool Egress To Watched-Jurisdiction Cloud Infrastructure
+id: 2a6f1c38-7e94-4d52-b8a3-1f0c5d9e7b46
+status: experimental
+description: |
+  Zero-baseline detection: a command-line transfer tool (curl/wget) sending to cloud
+  object storage operated under a watched legal jurisdiction (default: CN / RU / KP),
+  identified by provider endpoint or country TLD. This is a data-residency /
+  exfiltration-surface signal for teams assessing whether a model or workload routes
+  business data to infrastructure outside their control. It needs no per-environment
+  baselining — the destinations are known infrastructure, not a tuned allowlist. Customize
+  the host/TLD sets to your own risk model; allowlist specific buckets your org sanctions.
+references:
+  - https://cohere.com/blog/concerning-behaviour-popular-open-weight-ai-model
+author: Andre Seguin
+date: 2026-10-30
+tags:
+  - attack.exfiltration
+  - attack.t1567.002
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_tool:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  selection_cn:
+    CommandLine|contains:
+      - 'aliyuncs.com'
+      - 'myqcloud.com'
+      - 'myhuaweicloud.com'
+      - 'bcebos.com'
+      - 'volces.com'
+  selection_ru:
+    CommandLine|contains:
+      - 'yandexcloud.net'
+      - 'hb.bizmrg.com'
+      - 'mcs.mail.ru'
+      - 'selcdn.ru'
+  selection_kp:
+    CommandLine|contains:
+      - '.kp/'
+  condition: selection_tool and (selection_cn or selection_ru or selection_kp)
+fields:
+  - Image
+  - CommandLine
+  - ParentImage
+  - User
+falsepositives:
+  - Organisations with sanctioned operations or vendors in a watched jurisdiction. Allowlist
+    the specific buckets/endpoints you approve, or remove that jurisdiction's selection.
+level: high

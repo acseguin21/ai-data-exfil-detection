@@ -1,0 +1,49 @@
+{
+  "_use": "Zero-baseline egress watchlist keyed on identifiable cloud infrastructure and TLDs by legal jurisdiction. Flags egress from a monitored context to destinations under a watched jurisdiction's control, as a data-residency / exfiltration-surface signal — independent of, and not requiring, a per-environment allowlist. A destination you have explicitly placed in allowlist.json is not flagged, so orgs with sanctioned operations in a given jurisdiction can carve exceptions. Fully customizable via enabled_watchlists and the custom block.",
+  "_limits": "Jurisdiction markers identify where infrastructure is operated, not attribution. An actor relaying through infrastructure in a non-watched jurisdiction defeats these markers; and some jurisdictions host little or no public cloud, so a TLD/range list for them is inherently thin. Treat as one signal, not proof.",
+
+  "enabled_watchlists": ["CN", "RU", "KP"],
+
+  "jurisdictions": {
+    "CN": {
+      "label": "China",
+      "host_patterns": [
+        "\\.aliyuncs\\.com$",
+        "\\.oss-[a-z0-9-]+\\.aliyuncs\\.com$",
+        "\\.myqcloud\\.com$",
+        "cos\\.[a-z0-9-]+\\.myqcloud\\.com$",
+        "\\.myhuaweicloud\\.com$",
+        "obs\\.[a-z0-9-]+\\.myhuaweicloud\\.com$",
+        "\\.bcebos\\.com$",
+        "\\.volces\\.com$"
+      ],
+      "tlds": [".cn"],
+      "metadata_ips": ["100.100.100.200"]
+    },
+    "RU": {
+      "label": "Russia",
+      "host_patterns": [
+        "\\.storage\\.yandexcloud\\.net$",
+        "\\.yandexcloud\\.net$",
+        "\\.hb\\.bizmrg\\.com$",
+        "\\.mcs\\.mail\\.ru$",
+        "\\.selcdn\\.ru$"
+      ],
+      "tlds": [".ru", ".su"]
+    },
+    "KP": {
+      "label": "North Korea",
+      "host_patterns": [],
+      "tlds": [".kp"],
+      "cidrs": ["175.45.176.0/22"],
+      "_note": "Direct DPRK-hosted egress is rare; real DPRK data-theft risk typically routes through third-party or compromised infrastructure and is not catchable by jurisdiction markers alone. CIDR is for network-layer rules (flow logs / Falco), not command-line matching."
+    }
+  },
+
+  "custom": {
+    "_use": "Add markers for any jurisdiction or provider you care about more. host_patterns are regular expressions matched against the destination host; tlds are suffix matches; cidrs are for network-layer rules.",
+    "host_patterns": [],
+    "tlds": [],
+    "cidrs": []
+  }
+}

@@ -1,0 +1,75 @@
+# Falco rules — runtime detection of unsolicited egress from AI eval / agent sandboxes.
+#
+# Why Falco: Cohere runs model training/inference on Kubernetes (Oracle OKE on OCI, plus
+# GCP). Falco is the de-facto CNCF runtime-security sensor for exactly those clusters, so
+# this deploys as a DaemonSet tomorrow with no new vendor.
+#
+# Design for fidelity: scope to the namespaces where untrusted model-generated code runs.
+# Those sandboxes should be egress-DENIED by NetworkPolicy; these rules are the tripwire for
+# when something gets out anyway, plus the always-true metadata-access signal. Tune the two
+# lists below to your environment; keep the allowlist tight (your buckets, not the provider).
+
+- list: ai_sandbox_namespaces
+  items: [model-eval, agent-sandbox, inference-sandbox, rollout]
+
+- list: cloud_metadata_endpoints
+  items: ["169.254.169.254", "100.100.100.200", "fd00:ec2::254", metadata.google.internal]
+
+- list: sanctioned_egress_domains
+  items: [huggingface.co, pypi.org, files.pythonhosted.org, download.pytorch.org,
+          objectstorage.oci.customer-oci.com, storage.googleapis.com]
+
+- list: net_transfer_tools
+  items: [curl, wget, python, python3, nc, ncat, socat]
+
+- macro: in_ai_sandbox
+  condition: (k8s.ns.name in (ai_sandbox_namespaces))
+
+- macro: sandbox_spawned_proc
+  condition: (spawned_process and container and in_ai_sandbox)
+
+# CRITICAL — a sandbox workload reaching the cloud instance metadata service. Near-zero FP:
+# workloads should use workload identity, never curl the metadata IP. Credential theft / SSRF.
+- rule: AI Sandbox Accessed Cloud Instance Metadata
+  desc: A container in an AI eval/agent sandbox contacted a cloud instance metadata endpoint.
+  condition: >
+    sandbox_spawned_proc and proc.name in (net_transfer_tools)
+    and (proc.cmdline contains "169.254.169.254"
+      or proc.cmdline contains "100.100.100.200"
+      or proc.cmdline contains "metadata.google.internal"
+      or proc.cmdline contains "/latest/meta-data"
+      or proc.cmdline contains "/computeMetadata/")
+  output: >
+    AI sandbox accessed cloud metadata endpoint
+    (ns=%k8s.ns.name pod=%k8s.pod.name image=%container.image.repository
+     proc=%proc.name cmdline=%proc.cmdline user=%user.name)
+  priority: CRITICAL
+  tags: [mitre_credential_access, T1552.005, ai_runtime, egress]
+
+# HIGH — a transfer tool in a sandbox reaching an HTTP(S) URL that is NOT a sanctioned
+# domain. Because sandboxes are egress-denied, any off-allowlist URL is suspicious.
+- rule: AI Sandbox Unsanctioned Egress Attempt
+  desc: A transfer tool in an AI eval/agent sandbox invoked an off-allowlist URL.
+  condition: >
+    sandbox_spawned_proc and proc.name in (net_transfer_tools)
+    and (proc.cmdline contains "http://" or proc.cmdline contains "https://")
+    and not sanctioned_egress_domains intersects (proc.cmdline)
+  output: >
+    AI sandbox attempted egress to an unsanctioned destination
+    (ns=%k8s.ns.name pod=%k8s.pod.name image=%container.image.repository
+     proc=%proc.name cmdline=%proc.cmdline user=%user.name)
+  priority: HIGH
+  tags: [mitre_exfiltration, T1567.002, T1071.001, ai_runtime, egress]
+
+# NOTICE — network-layer backstop: any outbound connection from a sandbox to the metadata
+# IPs, even if it bypasses the shell (e.g. a compiled binary or a raw socket in python).
+- rule: AI Sandbox Outbound Connection To Metadata IP
+  desc: An outbound connection from an AI sandbox container to a cloud metadata IP.
+  condition: >
+    outbound and container and in_ai_sandbox
+    and fd.sip in (cloud_metadata_endpoints)
+  output: >
+    AI sandbox opened a connection to a cloud metadata IP
+    (ns=%k8s.ns.name pod=%k8s.pod.name proc=%proc.cmdline dest=%fd.sip:%fd.sport)
+  priority: CRITICAL
+  tags: [mitre_credential_access, T1552.005, ai_runtime, egress]

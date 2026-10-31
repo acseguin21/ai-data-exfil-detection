@@ -1,0 +1,58 @@
+title: Transfer Tool Egress To Unsanctioned Destination From Sandbox
+id: 7c3a1e94-2d6b-4f8a-9c21-6e5b0a1d4f20
+status: experimental
+description: |
+  Detects a command-line transfer tool (curl/wget) in an AI eval/agent sandbox (or any
+  workload that should have a known, short egress allowlist) uploading to or fetching from
+  a destination that is NOT on the sanctioned allowlist. This is the de-noised form of the
+  behaviour from Cohere's "Qwen 3.8 Flash Next" investigation: at an AI lab, egress to
+  cloud storage is routine, so the signal is not "egress to storage" but "egress to a
+  destination outside the allowlist" — which is why this rule is allowlist-RELATIVE.
+
+  You MUST populate the filter_sanctioned block with your environment's sanctioned
+  destinations (your object-storage buckets/namespace, package mirrors, model hubs). Scope
+  to specific buckets, not whole providers. Best deployed scoped to sandbox namespaces,
+  where the allowlist is shortest and egress should otherwise be denied.
+references:
+  - https://cohere.com/blog/concerning-behaviour-popular-open-weight-ai-model
+  - https://huggingface.co/datasets/CohereLabs/10-2026-qwen-investigation-traces
+author: Andre Seguin
+date: 2026-10-30
+tags:
+  - attack.exfiltration
+  - attack.t1567.002
+  - attack.t1071.001
+  - attack.t1105
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_tool:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  selection_egress:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+  # --- EDIT THIS: your sanctioned destinations. Everything else from a sandbox alerts. ---
+  filter_sanctioned:
+    CommandLine|contains:
+      - 'huggingface.co'
+      - 'pypi.org'
+      - 'files.pythonhosted.org'
+      - 'download.pytorch.org'
+      - 'objectstorage.oci.customer-oci.com'   # scope tighter: your tenancy/bucket
+      - 'storage.googleapis.com/yourorg-'        # your buckets only
+  condition: selection_tool and selection_egress and not filter_sanctioned
+fields:
+  - Image
+  - CommandLine
+  - ParentImage
+  - User
+falsepositives:
+  - A legitimate destination missing from filter_sanctioned. Add it rather than widening to
+    a whole provider. Outside sandbox namespaces this needs real baselining; the upload-only
+    variant (add CommandLine contains '-X PUT'/'--data-binary'/'--upload-file') is higher
+    fidelity where exfiltration is the specific concern.
+level: medium

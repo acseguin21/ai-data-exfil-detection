@@ -1,0 +1,23 @@
+// Microsoft Sentinel / Defender for Endpoint (Advanced Hunting) — KQL.
+// Table: DeviceProcessEvents (Linux onboarded to MDE).
+
+// === (1) Cloud instance metadata access — HIGH, turnkey (SSRF / credential theft) ===
+DeviceProcessEvents
+| where FileName in~ ("curl", "wget")
+| where ProcessCommandLine has_any (
+    "169.254.169.254", "100.100.100.200", "fd00:ec2::254",
+    "metadata.google.internal", "/latest/meta-data", "/computeMetadata/", "/metadata/instance")
+| project Timestamp, DeviceName, AccountName,
+          InitiatingProcessFileName, InitiatingProcessCommandLine, ProcessCommandLine
+
+// === (2) Unsanctioned egress from sandbox — allowlist-RELATIVE ===
+// Maintain SanctionedEgress as a watchlist; scope DeviceName/namespace to sandbox hosts.
+let SanctionedEgress = dynamic([
+    "huggingface.co","pypi.org","files.pythonhosted.org","download.pytorch.org",
+    "objectstorage.oci.customer-oci.com","storage.googleapis.com/yourorg-"]);
+DeviceProcessEvents
+| where FileName in~ ("curl", "wget")
+| where ProcessCommandLine has_any ("http://", "https://")
+| where not(ProcessCommandLine has_any (SanctionedEgress))
+// higher fidelity — uploads only: | where ProcessCommandLine has_any ("-X PUT","--data-binary","--upload-file"," -T ")
+| project Timestamp, DeviceName, AccountName, InitiatingProcessFileName, ProcessCommandLine

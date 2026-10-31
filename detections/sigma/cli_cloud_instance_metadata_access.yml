@@ -1,0 +1,47 @@
+title: Cloud Instance Metadata Access From Command-Line Transfer Tool
+id: 3b8e2f41-9c7d-4a65-b012-5d4f6a8c1e93
+status: experimental
+description: |
+  Detects a command-line transfer tool (curl/wget) requesting a cloud instance metadata
+  endpoint. Access to the metadata service from a workload — and especially from an AI
+  eval/agent sandbox running model-generated code — is a classic SSRF / credential-theft
+  precursor: it returns temporary cloud credentials and instance identity. In Cohere's
+  "Qwen 3.8 Flash Next" investigation the model spontaneously probed the Alibaba Cloud
+  metadata address (100.100.100.200). High fidelity: there are very few benign reasons for
+  curl/wget to touch these endpoints, so this is deployable with little or no tuning.
+references:
+  - https://cohere.com/blog/concerning-behaviour-popular-open-weight-ai-model
+author: Andre Seguin
+date: 2026-10-30
+tags:
+  - attack.credential-access
+  - attack.t1552.005
+  - attack.discovery
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_tool:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  selection_metadata:
+    CommandLine|contains:
+      - '169.254.169.254'          # AWS / Azure / GCP / OCI / OpenStack
+      - '100.100.100.200'          # Alibaba Cloud
+      - 'fd00:ec2::254'            # AWS IMDS over IPv6
+      - 'metadata.google.internal'
+      - '/latest/meta-data'
+      - '/computeMetadata/'
+      - '/metadata/instance'       # Azure IMDS
+  condition: selection_tool and selection_metadata
+fields:
+  - Image
+  - CommandLine
+  - ParentImage
+  - User
+falsepositives:
+  - Cloud bootstrap/agent tooling that legitimately reads instance metadata (cloud-init,
+    node agents). Baseline those parents; curl/wget by a shell or an eval/agent sandbox is
+    the anomaly. Deploying scoped to sandbox namespaces removes essentially all benign hits.
+level: high

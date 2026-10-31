@@ -1,0 +1,25 @@
+{
+  "_comment": "Sanctioned egress for AI eval/agent sandboxes. TUNE to your tenancy. Anything a sandbox contacts that is NOT matched here is a finding. Scope storage to YOUR buckets/namespace, never the whole provider — 'any GCS bucket' would allow exfil to an attacker's bucket.",
+  "allow_hosts": [
+    "huggingface.co",
+    "cdn-lfs.huggingface.co",
+    "cdn-lfs-us-1.huggingface.co",
+    "pypi.org",
+    "files.pythonhosted.org",
+    "download.pytorch.org"
+  ],
+  "allow_url_patterns": [
+    ".*\\.objectstorage\\.[a-z0-9-]+\\.oci\\.customer-oci\\.com/n/yourorg[a-z0-9-]*/.*",
+    "storage\\.googleapis\\.com/yourorg-[a-z0-9-]+/.*",
+    "[a-z0-9-]+\\.r2\\.cloudflarestorage\\.com/yourorg-[a-z0-9-]+/.*"
+  ],
+  "deny_always": [
+    "169.254.169.254",
+    "100.100.100.200",
+    "fd00:ec2::254",
+    "metadata.google.internal",
+    "/latest/meta-data",
+    "/computeMetadata/",
+    "/metadata/instance"
+  ]
+}

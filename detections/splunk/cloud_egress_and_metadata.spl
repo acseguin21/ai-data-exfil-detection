@@ -1,0 +1,25 @@
+* Splunk SPL — Splunk CIM Endpoint.Processes data model (Sysmon-for-Linux / EDR process
+* telemetry). Map process_name -> Image basename, process -> full CommandLine if not CIM.
+
+* === (1) Cloud instance metadata access — HIGH, turnkey ===
+| tstats `security_content_summariesonly` count min(_time) as firstTime max(_time) as lastTime
+    from datamodel=Endpoint.Processes
+    where Processes.process_name IN ("curl","wget")
+      AND (Processes.process="*169.254.169.254*" OR Processes.process="*100.100.100.200*"
+        OR Processes.process="*fd00:ec2::254*" OR Processes.process="*metadata.google.internal*"
+        OR Processes.process="*/latest/meta-data*" OR Processes.process="*/computeMetadata/*"
+        OR Processes.process="*/metadata/instance*")
+    by Processes.dest Processes.user Processes.parent_process_name Processes.process
+| `drop_dm_object_name(Processes)` | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`
+
+* === (2) Unsanctioned egress from sandbox — allowlist-RELATIVE ===
+* Edit the sanctioned_egress lookup/macro for your environment; scope `dest` to sandbox hosts.
+| tstats `security_content_summariesonly` count from datamodel=Endpoint.Processes
+    where Processes.process_name IN ("curl","wget")
+      AND (Processes.process="*http://*" OR Processes.process="*https://*")
+    by Processes.dest Processes.user Processes.parent_process_name Processes.process
+| `drop_dm_object_name(Processes)`
+| search NOT (process IN ("*huggingface.co*","*pypi.org*","*files.pythonhosted.org*",
+      "*download.pytorch.org*","*objectstorage.oci.customer-oci.com*","*storage.googleapis.com/yourorg-*"))
+* higher fidelity — uploads only:
+* | search process IN ("*-X PUT*","*--data-binary*","*--upload-file*","* -T *")

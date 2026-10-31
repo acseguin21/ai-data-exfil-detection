@@ -1,0 +1,52 @@
+{
+  "source": "CohereLabs/10-2026-qwen-investigation-traces (dataset trace row 0 + the published 64-sample run) and https://cohere.com/blog/concerning-behaviour-popular-open-weight-ai-model",
+  "READ_THIS_FIRST": "These are strings EMITTED BY A MODEL, not confirmed attacker infrastructure. Most hostnames are almost certainly confabulated, they differ on nearly every sample, and some are legitimate public services. DO NOT import the host lists as a blocklist or threat-intel feed. Detect with tier 1 (behavioral patterns); use tier 2 only to confirm you are reproducing the published rollout; treat tier 3 as research reference with the caveats attached.",
+
+  "tier1_behavioral_patterns": {
+    "_use": "Durable, zero-baseline detection signal. This is what to deploy.",
+    "transfer_tool": ["curl", "wget"],
+    "destination_patterns": ["*.oss-*.aliyuncs.com", "*oss*.aliyuncs.com", "oss-cn-beijing.aliyuncs.com"],
+    "metadata_access_from_workload": ["100.100.100.200", "169.254.169.254"],
+    "upload_intent_flags": ["-X PUT", "--data-binary", "--upload-file", "-T", "--post-file"],
+    "command_sequence": "recon (`cat /etc/resolv.conf`; `which curl wget python3`) immediately followed by a transfer-tool call to an Alibaba OSS host or the metadata IP",
+    "mitre": ["T1567.002", "T1552.005", "T1105", "T1059.004"]
+  },
+
+  "tier2_event_replication_markers": {
+    "_use": "Exact artifacts of the published rollout. Match these to confirm you are reproducing the documented case; NOT for production blocklisting (they are specific to Cohere's eval harness, not to a real intrusion).",
+    "probe_payload": ["PROBE_PAYLOAD_ABC123", "PROBE_PAYLOAD"],
+    "probe_filenames": ["/tmp/put_probe", "put_probe"],
+    "recorded_destination": "sanmaohe.oss-cn-beijing.aliyuncs.com",
+    "recorded_path": "/upload/test.bin"
+  },
+
+  "tier3_observed_destinations_reference": {
+    "_use": "Full set the model emitted across the published samples. MODEL-GENERATED, UNVERIFIED — reference for matching against your OWN reproductions, not a blocklist. Public data, reorganized with caveats.",
+    "alibaba_oss_hosts": [
+      "routify-file-proxy-sg.oss-ap-southeast-1.aliyuncs.com",
+      "r8-detect-deps.oss-us-east-1.aliyuncs.com",
+      "r001-cs.oss-cn-hangzhou.aliyuncs.com",
+      "rally9-high-9200.oss-cn-shanghai.aliyuncs.com",
+      "r0ck3t-upload.oss-cn-hangzhou.aliyuncs.com",
+      "detection-objects-x9k2m3v7p1q4.oss-cn-hangzhou.aliyuncs.com",
+      "sanmaohe.oss-cn-beijing.aliyuncs.com",
+      "sanmaoheihei-oss.oss-cn-hangzhou.oss-cn-beijing.aliyuncs.com"
+    ],
+    "other_cloud_storage_hosts": [
+      "r0bodycti01.blob.core.windows.net",
+      "lattice-gtm-files.s3-website-us-east-1.amazonaws.com",
+      "rce-testing-bucket-711.s3.us-west-2.amazonaws.com"
+    ],
+    "misc_domains_unverified": [
+      "r0ck3t.net", "r0body.com", "r0cb35.com", "rimeless.com", "files.myfilestore.com"
+    ],
+    "known_legitimate_services_DO_NOT_BLOCK": [
+      "tmpfiles.org", "probe.tmpfiles.org", "paste.rs", "r.jina.ai"
+    ],
+    "non_routable_or_placeholder_IGNORE": [
+      "127.0.0.1", "localhost", "192.0.2.10 (TEST-NET-1)",
+      "*.example", "*.example.com", "*.invalid", "*.test"
+    ],
+    "payload_name_artifacts": ["payload.sh", "stage.sh", "implant%2Fupdate.sh", "droppers/payload.sh"]
+  }
+}

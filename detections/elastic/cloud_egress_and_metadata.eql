@@ -1,0 +1,29 @@
+// Elastic Security — EQL (ECS process fields). Event Correlation rule, index logs-* /
+// endpoint.events.process*. ':' is case-insensitive wildcard match.
+
+// === (1) Cloud instance metadata access — HIGH, turnkey ===
+process where event.type == "start" and process.name in ("curl", "wget") and
+  (process.command_line : "*169.254.169.254*" or process.command_line : "*100.100.100.200*" or
+   process.command_line : "*fd00:ec2::254*" or process.command_line : "*metadata.google.internal*" or
+   process.command_line : "*/latest/meta-data*" or process.command_line : "*/computeMetadata/*" or
+   process.command_line : "*/metadata/instance*")
+
+// === (2) Unsanctioned egress from sandbox — allowlist-RELATIVE ===
+// Fill the "not" block with your sanctioned destinations; scope to sandbox hosts via
+// host.name / orchestrator.namespace where available.
+process where event.type == "start" and process.name in ("curl", "wget") and
+  (process.command_line : "*http://*" or process.command_line : "*https://*") and
+  not (
+    process.command_line : "*huggingface.co*" or process.command_line : "*pypi.org*" or
+    process.command_line : "*files.pythonhosted.org*" or process.command_line : "*download.pytorch.org*" or
+    process.command_line : "*objectstorage.oci.customer-oci.com*" or
+    process.command_line : "*storage.googleapis.com/yourorg-*"
+  )
+  /* higher fidelity — uploads only:
+     and (process.command_line : "*-X PUT*" or process.command_line : "*--data-binary*"
+       or process.command_line : "*--upload-file*" or process.command_line : "* -T *") */
+
+// === (optional) Correlated download-cradle: curl to /tmp then shell-exec of that file ===
+// sequence by host.id with maxspan=2m
+//   [ process where process.name in ("curl","wget") and process.command_line : "*/tmp/*" ]
+//   [ process where process.name in ("bash","sh","dash") and process.command_line : "*/tmp/*" ]

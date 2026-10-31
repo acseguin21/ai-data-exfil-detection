@@ -1,0 +1,9 @@
+# The detection scripts (validate.py, agent_trace_detector.py, egress_policy.py) use only
+# the Python standard library — no install needed to run or test them.
+#
+# These are optional, for linting and converting the canonical Sigma rules to vendor formats:
+sigma-cli>=1.0
+pysigma-backend-splunk>=1.1
+# add other pySigma backends as needed, e.g.:
+#   pysigma-backend-microsoft365defender   (Sentinel / Defender KQL)
+#   pysigma-backend-elasticsearch          (Elastic)
