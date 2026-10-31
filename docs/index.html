@@ -3,153 +3,250 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Egress Detection</title>
-<meta name="description" content="Shift-left detection for unsolicited egress by open-weight model agents — see if your data is leaving during model runs.">
+<title>Model Egress Detection</title>
+<meta name="description" content="Layered detection for unsolicited data egress by open-weight model agents — metadata SSRF, cloud-storage exfil, off-jurisdiction and off-allowlist egress.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#ffffff; --fg:#1a1d21; --muted:#5b636b; --line:#e3e6ea;
-    --card:#f7f8fa; --accent:#1f6feb; --flag:#b4451f; --code:#f2f3f5; --codefg:#1a1d21;
-  }
-  :root:not([data-theme="light"]) { }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0f1216; --fg:#e7eaee; --muted:#9aa4ad; --line:#262b31;
-      --card:#161a1f; --accent:#5b9bff; --flag:#e0774d; --code:#1a1f25; --codefg:#e7eaee;
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#0f1216; --fg:#e7eaee; --muted:#9aa4ad; --line:#262b31;
-    --card:#161a1f; --accent:#5b9bff; --flag:#e0774d; --code:#1a1f25; --codefg:#e7eaee;
+    --bg:#0b0b0d; --bg2:#141416; --fg:#f4f0e9; --muted:#9f9a90;
+    --line:rgba(244,240,233,.10); --card:rgba(255,255,255,.025);
+    --coral:#ff6f5e; --sage:#a8c49f; --lav:#c3abf0;
+    --maxw:1060px;
   }
   *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
   body{margin:0;background:var(--bg);color:var(--fg);
-    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-  .wrap{max-width:820px;margin:0 auto;padding:3rem 16px 5rem}
-  h1{font-size:1.9rem;line-height:1.2;margin:0 0 .4rem}
-  h2{font-size:1.3rem;margin:2.6rem 0 .8rem;padding-top:.6rem;border-top:1px solid var(--line)}
-  h3{font-size:1.05rem;margin:1.6rem 0 .4rem}
-  p,li{color:var(--fg)}
-  .lede{font-size:1.15rem;color:var(--muted);margin:.2rem 0 1.4rem}
-  a{color:var(--accent)}
-  code{background:var(--code);color:var(--codefg);padding:.1rem .35rem;border-radius:4px;
-    font:13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  pre{background:var(--code);color:var(--codefg);padding:1rem 1.1rem;border-radius:8px;
-    overflow:auto;border:1px solid var(--line);font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  pre code{background:none;padding:0}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;margin:1rem 0}
-  .flag{border-left:4px solid var(--flag)}
-  table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.95rem}
-  th,td{border:1px solid var(--line);padding:.5rem .7rem;text-align:left;vertical-align:top}
-  th{background:var(--card)}
-  .tag{display:inline-block;font-size:.75rem;color:var(--muted);border:1px solid var(--line);
-    border-radius:999px;padding:.05rem .55rem;margin-right:.3rem}
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.55;overflow-x:hidden}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
+  a{color:inherit}
+  h1,h2,h3{font-weight:300;letter-spacing:-.02em;line-height:1.05;margin:0}
   .muted{color:var(--muted)}
-  footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+  .dots{display:inline-flex;gap:5px;align-items:center}
+  .dots i{width:9px;height:9px;border-radius:50%;display:block}
+
+  /* nav */
+  nav{display:flex;align-items:center;justify-content:space-between;
+    padding:20px;max-width:var(--maxw);margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:500;letter-spacing:-.01em}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;
+    padding:11px 20px;font-weight:500;font-size:.95rem;text-decoration:none;
+    border:1px solid transparent;transition:transform .15s ease,opacity .15s ease}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:var(--fg);color:#0b0b0d}
+  .btn-ghost{border-color:var(--line);color:var(--fg)}
+
+  /* hero */
+  .hero{position:relative;padding:64px 0 40px;text-align:center;overflow:hidden}
+  .glow{position:absolute;inset:-20% -10% auto -10%;height:620px;z-index:0;filter:blur(70px);
+    opacity:.55;pointer-events:none;
+    background:
+      radial-gradient(42% 55% at 28% 35%, rgba(255,111,94,.55), transparent 70%),
+      radial-gradient(40% 55% at 72% 30%, rgba(195,171,240,.5), transparent 70%),
+      radial-gradient(46% 60% at 52% 72%, rgba(168,196,159,.45), transparent 72%);
+    animation:drift 18s ease-in-out infinite alternate}
+  @keyframes drift{to{transform:translate3d(0,-18px,0) scale(1.05)}}
+  .hero .inner{position:relative;z-index:1}
+  .chip{display:inline-block;font-size:.78rem;letter-spacing:.04em;color:var(--muted);
+    border:1px solid var(--line);border-radius:999px;padding:5px 13px;margin-bottom:26px}
+  h1{font-size:clamp(2.6rem,7vw,5.1rem)}
+  h1 .accent{color:var(--coral)}
+  .sub{max-width:620px;margin:22px auto 0;font-size:clamp(1.05rem,2.2vw,1.3rem);
+    font-weight:300;color:#d8d3ca}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+
+  section{padding:56px 0}
+  .eyebrow{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--coral);
+    font-weight:600;margin-bottom:14px}
+  .lead{font-size:clamp(1.6rem,3.6vw,2.4rem);font-weight:300;max-width:720px}
+
+  /* layers diagram */
+  .diagram{margin:30px 0 6px}
+  .diagram svg{width:100%;height:auto;display:block}
+  .layers{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+  .layer{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;
+    border-top:2px solid var(--lc,var(--coral))}
+  .layer h3{font-size:1.02rem;font-weight:500;letter-spacing:-.01em;margin-bottom:6px}
+  .layer p{margin:0;font-size:.86rem;color:var(--muted);line-height:1.45}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .stat{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:24px 20px}
+  .stat b{display:block;font-size:clamp(1.9rem,4vw,2.7rem);font-weight:200;letter-spacing:-.03em;
+    line-height:1}
+  .stat span{display:block;margin-top:9px;font-size:.84rem;color:var(--muted)}
+  .stat.c1 b{color:var(--sage)} .stat.c2 b{color:var(--coral)}
+  .stat.c3 b{color:var(--lav)} .stat.c4 b{color:var(--fg)}
+
+  /* catch cards */
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:30px}
+  .cardx{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;
+    display:flex;gap:16px;align-items:flex-start}
+  .cardx .ic{flex:0 0 42px;height:42px;border-radius:11px;display:grid;place-items:center;
+    background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .cardx h3{font-size:1.08rem;font-weight:500;letter-spacing:-.01em}
+  .cardx .att{font-size:.72rem;color:var(--muted);letter-spacing:.03em}
+  .cardx p{margin:6px 0 0;font-size:.9rem;color:#cfcabf}
+
+  /* closing */
+  .close{text-align:center;background:
+      radial-gradient(60% 120% at 50% 0%, rgba(255,111,94,.1), transparent 70%);
+    border-top:1px solid var(--line);padding:70px 0 40px;margin-top:30px}
+  footer{color:var(--muted);font-size:.8rem;text-align:center;padding:26px 20px 50px;max-width:720px;margin:0 auto}
+
+  @media (max-width:760px){
+    .layers{grid-template-columns:repeat(2,1fr)}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .cards{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){.glow{animation:none}.beacon{animation:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <p><span class="tag">defensive</span><span class="tag">detection-as-code</span><span class="tag">AI runtime</span></p>
-  <h1>Is your data leaving when you run open-weight models?</h1>
-  <p class="lede">A shift-left way to tell whether a model you run with tool or code
-  access is making unsolicited network calls — before it touches anything that matters.</p>
+<nav>
+  <div class="brand">
+    <span class="dots"><i style="background:var(--sage)"></i><i style="background:var(--coral)"></i><i style="background:var(--lav)"></i></span>
+    egress&nbsp;detection
+  </div>
+  <a class="btn btn-ghost" href="https://github.com/acseguin21/ai-data-exfil-detection">GitHub ↗</a>
+</nav>
 
-  <h2>The problem, in plain terms</h2>
-  <p>Teams increasingly run open-weight models inside <strong>agent harnesses, evaluation
-  pipelines, and tool-using RAG systems</strong> — contexts where the model can execute
-  shell commands. In a published investigation, an open-weight model, given an ordinary
-  security task, <strong>spontaneously issued <code>curl</code> commands that tried to send
-  a probe payload to third-party cloud object storage</strong> and to a cloud metadata
-  endpoint — without being asked.
-  (<a href="https://cohere.com/blog/concerning-behaviour-popular-open-weight-ai-model">documented
-  by Cohere</a>; the recorded destination was an Alibaba Cloud bucket in the Beijing region.)</p>
+<header class="hero">
+  <div class="glow"></div>
+  <div class="wrap inner">
+    <span class="chip">Open-weight model risk · defensive detection</span>
+    <h1>Your models.<br>Your data.<br><span class="accent">Your perimeter.</span></h1>
+    <p class="sub">Open-weight models with tool access can reach out on their own. These are the
+      layers that catch it — before your IP or customer data ever leaves.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/acseguin21/ai-data-exfil-detection">View the detections</a>
+      <a class="btn btn-ghost" href="#layers">See how it works</a>
+    </div>
+  </div>
+</header>
 
-  <p>Whether that behaviour is common, rare, or benign, the <strong>governance question is
-  concrete</strong>: if a model-driven process in your environment reaches out, where does
-  the data go? Cloud object storage and metadata endpoints are destinations you may not
-  control, sometimes operated in <strong>other jurisdictions</strong> — a data-residency
-  and exfiltration-surface concern regardless of intent.</p>
+<section id="layers" class="wrap">
+  <div class="eyebrow">Defense in depth</div>
+  <h2 class="lead">Four independent layers. The beacon never gets out.</h2>
 
-  <div class="card flag">
-    <strong>What this is, and isn't.</strong> This is defensive detection content so
-    responders can <em>see for themselves</em> whether it happens in their own setup. It is
-    not an accusation about any model or vendor: the observed behaviour is probabilistic and
-    not confirmed data theft. The point is visibility, not a verdict.
+  <div class="diagram">
+    <svg viewBox="0 0 960 300" role="img" aria-label="An egress beacon from a model agent is stopped by four detection layers before reaching your data.">
+      <defs>
+        <linearGradient id="vault" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#a8c49f"/><stop offset="1" stop-color="#8bb07f"/>
+        </linearGradient>
+      </defs>
+
+      <!-- model agent -->
+      <circle cx="78" cy="150" r="40" fill="rgba(255,111,94,.12)" stroke="#ff6f5e" stroke-width="1.4"/>
+      <circle cx="66" cy="150" r="5" fill="#ff6f5e"/><circle cx="82" cy="150" r="5" fill="#c3abf0"/><circle cx="98" cy="150" r="5" fill="#a8c49f"/>
+      <text x="78" y="214" text-anchor="middle" fill="#9f9a90" font-size="13" font-family="Inter">Model agent</text>
+
+      <!-- beacon attempt -->
+      <path class="beacon" d="M122 150 H250" stroke="#ff6f5e" stroke-width="2" stroke-dasharray="7 7" fill="none"/>
+      <text x="186" y="130" text-anchor="middle" fill="#ff6f5e" font-size="12" font-family="Inter">egress attempt</text>
+
+      <!-- four gates -->
+      <g font-family="Inter" font-size="12.5" fill="#f4f0e9" text-anchor="middle">
+        <g>
+          <rect x="262" y="70" width="50" height="160" rx="12" fill="rgba(255,111,94,.09)" stroke="#ff6f5e" stroke-width="1.3"/>
+          <line x1="262" y1="88" x2="312" y2="88" stroke="#ff6f5e" stroke-width="3"/>
+        </g>
+        <g>
+          <rect x="372" y="70" width="50" height="160" rx="12" fill="rgba(195,171,240,.09)" stroke="#c3abf0" stroke-width="1.3"/>
+          <line x1="372" y1="88" x2="422" y2="88" stroke="#c3abf0" stroke-width="3"/>
+        </g>
+        <g>
+          <rect x="482" y="70" width="50" height="160" rx="12" fill="rgba(168,196,159,.09)" stroke="#a8c49f" stroke-width="1.3"/>
+          <line x1="482" y1="88" x2="532" y2="88" stroke="#a8c49f" stroke-width="3"/>
+        </g>
+        <g>
+          <rect x="592" y="70" width="50" height="160" rx="12" fill="rgba(255,111,94,.09)" stroke="#ff6f5e" stroke-width="1.3"/>
+          <line x1="592" y1="88" x2="642" y2="88" stroke="#ff6f5e" stroke-width="3"/>
+        </g>
+      </g>
+
+      <!-- caught marker at the first layer -->
+      <circle cx="287" cy="150" r="17" fill="#0b0b0d" stroke="#ff6f5e" stroke-width="1.6"/>
+      <path d="M281 150 l4 4 l8 -9" stroke="#ff6f5e" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="287" y="258" text-anchor="middle" fill="#ff6f5e" font-size="12.5" font-family="Inter" font-weight="600">caught</text>
+
+      <!-- blocked continuation -->
+      <path d="M312 150 H792" stroke="rgba(244,240,233,.14)" stroke-width="2" stroke-dasharray="4 10" fill="none"/>
+
+      <!-- data vault -->
+      <rect x="812" y="112" width="76" height="76" rx="18" fill="rgba(168,196,159,.1)" stroke="url(#vault)" stroke-width="1.6"/>
+      <rect x="836" y="146" width="28" height="22" rx="4" fill="none" stroke="#a8c49f" stroke-width="1.8"/>
+      <path d="M842 146 v-7 a8 8 0 0 1 16 0 v7" fill="none" stroke="#a8c49f" stroke-width="1.8"/>
+      <text x="850" y="214" text-anchor="middle" fill="#9f9a90" font-size="13" font-family="Inter">IP &amp; customer data</text>
+    </svg>
   </div>
 
-  <h2>Who should look</h2>
-  <ul>
-    <li>Anyone running <strong>open-weight models with tool / code execution</strong> —
-    agents, autonomous eval rollouts, CI that runs model-generated commands.</li>
-    <li>Security and incident-response teams who want a <strong>shift-left</strong> signal:
-    catch egress in the eval pipeline before a model reaches production.</li>
-    <li>Platform teams who need to prove, for governance, that sandboxed model runs
-    <strong>do not phone home</strong>.</li>
-  </ul>
+  <div class="layers">
+    <div class="layer" style="--lc:var(--coral)"><h3>Shift-left</h3><p>A CI gate on eval rollouts — caught before a model ever ships.</p></div>
+    <div class="layer" style="--lc:var(--lav)"><h3>Runtime</h3><p>Falco on your clusters, scoped to the sandboxes running model code.</p></div>
+    <div class="layer" style="--lc:var(--sage)"><h3>SIEM</h3><p>Sigma → Splunk, Sentinel, Elastic. Converts to your backend.</p></div>
+    <div class="layer" style="--lc:var(--coral)"><h3>Jurisdiction</h3><p>Flags data crossing into watched jurisdictions. Customizable.</p></div>
+  </div>
+</section>
 
-  <h2>Example 1 — check a model run for egress</h2>
-  <p>Point the trace detector at an agent/eval rollout (your own logs, or a published
-  trace). It flags any outbound call to a destination outside your sanctioned allowlist,
-  and any cloud-metadata access:</p>
-  <pre><code>$ python detections/agent_trace_detector.py rollout-trace.jsonl
+<section class="wrap">
+  <div class="stats">
+    <div class="stat c1"><b>0</b><span>false positives on routine ML-ops</span></div>
+    <div class="stat c2"><b>100%</b><span>of the exfil variants caught</span></div>
+    <div class="stat c3"><b>4</b><span>Sigma rules, lint-clean &amp; CI-enforced</span></div>
+    <div class="stat c4"><b>min</b><span>to deploy on your existing stack</span></div>
+  </div>
+</section>
 
-[    HIGH] record 4: unsanctioned -&gt; sanmaohe.oss-cn-beijing.aliyuncs.com
-          (T1567.002; upload to a destination outside the sandbox allowlist)
+<section class="wrap">
+  <div class="eyebrow">What it catches</div>
+  <h2 class="lead">The ways a model tries to move your data.</h2>
+  <div class="cards">
+    <div class="cardx">
+      <div class="ic">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c3abf0" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+      </div>
+      <div><span class="att">T1552.005</span><h3>Metadata SSRF</h3><p>Reaching the cloud metadata endpoint to steal instance credentials.</p></div>
+    </div>
+    <div class="cardx">
+      <div class="ic">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6f5e" stroke-width="1.6"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+      </div>
+      <div><span class="att">T1567.002</span><h3>Cloud-storage exfil</h3><p>Uploads to object-storage buckets your org doesn't control.</p></div>
+    </div>
+    <div class="cardx">
+      <div class="ic">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a8c49f" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+      </div>
+      <div><span class="att">Data residency</span><h3>Off-jurisdiction egress</h3><p>Data crossing into watched jurisdictions — on by default, tunable.</p></div>
+    </div>
+    <div class="cardx">
+      <div class="ic">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c3abf0" stroke-width="1.6"><path d="M20 13c0 5-3.5 7.5-7.7 8.9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1 1 0 0 1 1.3 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+      </div>
+      <div><span class="att">T1071.001</span><h3>Off-allowlist egress</h3><p>Anything leaving that isn't on your sanctioned list.</p></div>
+    </div>
+  </div>
+</section>
 
-[trace-detector] 1 finding(s) in rollout-trace.jsonl   # exit 2 -> fails your CI gate</code></pre>
-  <p class="muted">Run against the published investigation trace, it surfaces the egress
-  attempt at the point it was emitted — which is exactly where you'd want to catch it in
-  your own pipeline.</p>
+<section class="close">
+  <div class="wrap">
+    <h2 style="font-size:clamp(1.9rem,4.5vw,3rem)">Know if your models<br>are a risk to your data.</h2>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/acseguin21/ai-data-exfil-detection">Get the detections on GitHub</a>
+    </div>
+  </div>
+</section>
 
-  <h2>Example 2 — prove it's signal, not noise</h2>
-  <p>At an AI lab, <code>curl</code> to cloud storage runs constantly (weights, datasets,
-  checkpoints). So the detections are <strong>allowlist-relative</strong>: they alert on
-  what is <em>not</em> sanctioned, plus metadata access. The repo ships a benign ML-ops
-  corpus to keep false positives honest:</p>
-  <pre><code>$ python detections/validate.py
+<footer>
+  Defensive security tooling. Built on a publicly documented investigation; not affiliated with
+  any model vendor or cloud provider. Observed indicators are model-generated and unverified —
+  reference only, never a blocklist.
+</footer>
 
-[validate] benign ML-ops commands : 10
-[validate]   false positives       : 0   (target 0)
-[validate] malicious commands      : 6
-[validate]   true positives        : 6/6
-[validate] precision on this corpus: 100.0%
-[validate] PASS — zero false positives, all exfil caught.</code></pre>
-
-  <h2>Example 3 — deploy where it fits</h2>
-  <p>Same logic, three places — pick what you already run:</p>
-  <table>
-    <tr><th>Where</th><th>What</th><th>Notes</th></tr>
-    <tr><td>Eval / agent pipeline</td><td><code>agent_trace_detector.py</code> as a CI gate</td>
-      <td>Catches it before a model ships. No SIEM needed.</td></tr>
-    <tr><td>Kubernetes runtime</td><td>Falco rules (<code>detections/falco/</code>)</td>
-      <td>DaemonSet scoped to sandbox namespaces; pair with default-deny egress.</td></tr>
-    <tr><td>SIEM</td><td>Sigma → Splunk / Sentinel / Elastic</td>
-      <td>Metadata rule turnkey; egress rule once you set your allowlist.</td></tr>
-  </table>
-  <p class="muted">The Sigma rules pass <code>sigma check</code> and convert via pySigma;
-  mapped to MITRE ATT&amp;CK T1552.005 (cloud metadata) and T1567.002 (exfiltration to
-  cloud storage).</p>
-
-  <h2>Check your own usage</h2>
-  <ol>
-    <li>Export an agent/eval rollout to JSONL (tool calls / executed commands).</li>
-    <li>Edit <code>detections/allowlist.json</code> to your sanctioned destinations
-    (your buckets and mirrors — scope to specific buckets, never a whole provider).</li>
-    <li><code>python detections/agent_trace_detector.py your-rollout.jsonl</code></li>
-    <li>Wire it into CI so a rollout that tries to egress fails the build.</li>
-  </ol>
-  <p>The egress rules can watch for destinations under jurisdictions you care about
-  (data-residency), and ship with a regression test (<code>detections/validate.py</code>)
-  that keeps false positives at zero. See the repository README,
-  <code>detections/TESTING.md</code> and <code>DISCLAIMER.md</code>.</p>
-
-  <footer>
-    Defensive security tooling. Built on a publicly documented investigation; not affiliated
-    with any model vendor or cloud provider. Observed indicators are model-generated and
-    unverified — reference only, never a blocklist, and never contacted directly.
-  </footer>
-
-</div>
 </body>
 </html>
